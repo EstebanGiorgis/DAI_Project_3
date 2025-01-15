@@ -11,6 +11,13 @@
 *.iml
 *.ipr
 
+# Compiles files
+*.class
+
+
+# Logs
+# *.log
+
 # Editor-based HTTP Client requests
 .idea/httpRequests/
 
@@ -31,6 +38,9 @@
 ## Maven
 .mvn/wrapper/maven-wrapper.jar
 target/
+.classpath
+.project
+.settings/
 
 ## Windows
 
