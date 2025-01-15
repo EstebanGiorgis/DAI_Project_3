@@ -1,6 +1,8 @@
 package ch.heigvd.dai;
 
 import io.javalin.Javalin;
+
+import java.time.LocalDateTime;
 import java.util.concurrent.ConcurrentHashMap;
 
 import ch.heigvd.dai.users.*;
@@ -11,17 +13,14 @@ public class Main {
   public static void main(String[] args) {
 
     ConcurrentHashMap<Integer, User> users = new ConcurrentHashMap<>();
-    UsersController usersController = new UsersController(users);
+    ConcurrentHashMap<Integer, LocalDateTime> usersCache = new ConcurrentHashMap<>();
+    UsersController usersController = new UsersController(users, usersCache);
 
     Javalin app = Javalin.create();
 
     // CRUD users
 
-    // TODO: Add parameters
     app.post("/users/", usersController::create);
-    app.get("/users/{id}", usersController::overview);
-
-    // TODO: Add parameters
     app.put("/users/{id}", usersController::update);
     app.delete("/users/{id}", usersController::delete);
 

@@ -25,6 +25,8 @@ The request body must contain a JSON object with the following properties:
 
 - `firstName` - The first name of the user
 - `lastName` - The last name of the user
+- `username` - Username chosen by user (must be unique)
+- `password` - Password of the account
 
 #### Response
 
@@ -33,30 +35,63 @@ The response body contains a JSON object with the following properties:
 - `id` - The unique identifier of the user
 - `firstName` - The first name of the user
 - `lastName` - The last name of the user
+- `username` - Username chosen by user
+- `password` - Password chosen by user
 
 #### Status codes
 
 - `201` (Created) - The user has been successfully created
 - `400` (Bad Request) - The request body is invalid
+- `409` (Conflict) - Username already exists
 
+### Modify an existing user
 
-### Get one user's overview
+- `POST /user/{id}`
 
-- `GET /users/{id}`
-
-Get one user's overview by its ID.
+Update user infos
 
 #### Request
 
-The request path must contain the ID of the user.
+The request contains a JSON object with the following possible properties (depending on what he wants to update) :
+- firstName
+- lastName
+- username
+- password
 
 #### Response
 
-The response body contains a JSON object with the following properties:
-
+The response contains a JSON with the following properties :
+- `id` - The unique identifier of the user
+- `firstName` - The first name of the user
+- `lastName` - The last name of the user
+- `username` - Username chosen by user
+- `password` - Password chosen by user
 
 #### Status codes
 
-- `200` (OK) - The user has been successfully retrieved
-- `404` (Not Found) - The user does not exist
+- `201` (Created) - The user informations were correctly updated
+- `400` (Bad Request) - The request body is invalid
+
+### Delete an existing user
+
+- `DELETE /user/{id}`
+
+Delete user
+
+#### Request
+
+The request has an empty body, only giving id in url
+
+#### Response
+
+The response has also an empty body
+
+#### Status codes
+
+- `204` (No content) - Delete was successful, no content is present in the body
+- `404` (Not Found) - The specified user does not exist
+
+
+
+
 
