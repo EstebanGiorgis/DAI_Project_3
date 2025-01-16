@@ -1,10 +1,11 @@
 package ch.heigvd.poo;
 
-import java.io.javalin.http.Context;
+import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import io.javalin.http.UnauthorizedResponse;
 
 import java.util.concurrent.ConcurrentHashMap;
+
 
 public class AuthController {
     private final ConcurrentHashMap<Integer, User> users;
@@ -13,22 +14,23 @@ public class AuthController {
         this.users = users;
     }
 
-    // Méthode pour se connecter
-    public void login(Context ctx) {
-        User loginUser = ctx.bodyValidator(User.class)
+    public void login(Context requestContent) {
+        User loginUser = requestContent.bodyValidator(User.class)
                 .check(obj -> obj.email != null, "Missing email")
                 .check(obj -> obj.password != null, "Missing password")
                 .get();
 
         for (User user : users.values()) {
+
+            //dans le cas ou l'utilisateur existe
             if (user.email.equalsIgnoreCase(loginUser.email) && user.password.equals(loginUser.password)) {
-                // Ajouter un cookie pour identifier l'utilisateur
-                ctx.cookie("user", String.valueOf(user.id));
+                //création d'un cookie avec l'id du user
+                requestContent.cookie("user", String.valueOf(user.id));
 
-                // Ajouter un cookie pour le rôle de l'utilisateur (ici LOGGED_IN par défaut)
-                ctx.cookie("role", Role.LOGGED_IN.name());
+                //création d'un cookie avec son role
+                requestContent.cookie("role", Role.LOGGED_IN.name());
 
-                ctx.status(HttpStatus.NO_CONTENT);
+                requestContent.status(HttpStatus.NO_CONTENT);
                 return;
             }
         }
@@ -37,21 +39,10 @@ public class AuthController {
     }
 
     // Méthode pour se déconnecter
-    public void logout(Context ctx) {
-        ctx.removeCookie("user");
-        ctx.removeCookie("role"); // Supprimer également le rôle
-        ctx.status(HttpStatus.NO_CONTENT);
+    public void logout(Context requestContent) {
+        requestContent.removeCookie("user");
+        requestContent.removeCookie("role");
+        requestContent.status(HttpStatus.NO_CONTENT);
     }
 
-    // Méthode pour vérifier si l'utilisateur est connecté
-    public boolean isLoggedIn(Context ctx) {
-        String role = ctx.cookie("role");
-        return role != null && role.equals(Role.LOGGED_IN.name());
-    }
-
-    // Méthode pour vérifier si l'utilisateur est admin
-    public boolean isAdmin(Context ctx) {
-        String role = ctx.cookie("role");
-        return role != null && role.equals(Role.ADMIN.name());
-    }
 }
