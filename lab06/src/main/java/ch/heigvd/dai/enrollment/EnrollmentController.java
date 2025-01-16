@@ -3,10 +3,16 @@ package ch.heigvd.dai.enrollment;
 import ch.heigvd.dai.subjects.Subject;
 import ch.heigvd.dai.users.User;
 import io.javalin.http.*;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Map;
 
 import java.time.LocalDateTime;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import com.aayushatharva.brotli4j.common.annotations.Local;
 
 public class EnrollmentController {
 
@@ -18,12 +24,15 @@ public class EnrollmentController {
   private final CopyOnWriteArrayList<Double> labGrades;
   private final CopyOnWriteArrayList<Double> courseGrades;
 
+  private final ConcurrentHashMap<Integer, LocalDateTime> cacheOverview; // Integer = userId
+
   public EnrollmentController(ConcurrentHashMap<Integer, User> users, ConcurrentHashMap<Integer, Subject> subjects) {
     this.users = users;
     this.subjects = subjects;
     this.enrollments = new CopyOnWriteArrayList<>();
     this.labGrades = new CopyOnWriteArrayList<>();
     this.courseGrades = new CopyOnWriteArrayList<>();
+    this.cacheOverview = new ConcurrentHashMap<>();
   }
 
   public void create(Context ctx) {
@@ -48,7 +57,11 @@ public class EnrollmentController {
 
     enrollments.add(e);
 
+    LocalDateTime now = LocalDateTime.now();
+    cacheOverview.put(userId, now);
+
     ctx.status(HttpStatus.CREATED);
+    ctx.header("Last-Modified", String.valueOf(now));
     ctx.json(e);
   }
 
@@ -64,6 +77,15 @@ public class EnrollmentController {
       throw new NotFoundResponse("Subject not found");
     }
 
+    LocalDateTime lastKnownModification = ctx.headerAsClass("If-Unmodified-Since", LocalDateTime.class).get();
+    if (lastKnownModification != null) {
+      LocalDateTime lastModified = cacheOverview.get(userId);
+
+      if (lastModified != null && lastModified.isAfter(lastKnownModification)) {
+        throw new PreconditionFailedResponse();
+      }
+    }
+
     int enrollmentIdx = -1;
     for (Enrollment e : enrollments) {
       if (e.userId == userId && e.subjectId == subjectId) {
@@ -73,11 +95,15 @@ public class EnrollmentController {
 
     if (enrollmentIdx != -1) {
       enrollments.remove(enrollmentIdx);
+
+      LocalDateTime now = LocalDateTime.now();
+      cacheOverview.put(userId, now);
+
+      ctx.header("Last-Modified", String.valueOf(now));
+      ctx.status(HttpStatus.NO_CONTENT);
     } else {
       throw new NotFoundResponse("Enrollment not found");
     }
-
-    ctx.status(HttpStatus.NO_CONTENT);
   }
 
   class GradeSubmissionDTO {
@@ -110,57 +136,22 @@ public class EnrollmentController {
 
     Enrollment e = enrollments.get(enrollmentIdx);
     switch (grade.gradeType) {
-      case "lab":
+      case "labGrade":
         e.labGrades.add(grade.grade);
         break;
-      case "course":
+      case "courseGrade":
         e.courseGrades.add(grade.grade);
         break;
       default:
         throw new BadRequestResponse("Grade type is wrong");
     }
 
+    LocalDateTime now = LocalDateTime.now();
+
+    cacheOverview.put(userId, now);
+
+    ctx.header("Last-Modified", String.valueOf(now));
     ctx.status(HttpStatus.OK);
-  }
-
-  public ConcurrentHashMap<Double, Double> previsionnalAvg() {
-
-    ConcurrentHashMap<Double, Double> previsions = new ConcurrentHashMap<>();
-
-    for (double i = 1.0; i <= 6.0; i += 0.5) {
-      double avg = processAvgWithExam(i);
-      previsions.put(i, avg);
-    }
-
-    return previsions;
-  }
-
-  private double processAvgWithExam(double avg) {
-    double sumLabGrades = sumGrades(labGrades);
-    double sumCourseGrades = sumGrades(courseGrades);
-
-    int nbGrades = labGrades.size() + courseGrades.size();
-    return ((((sumLabGrades * COEF_LAB + sumCourseGrades * COEF_COURSE) / nbGrades) + avg) / 2);
-  }
-
-  private double sumGrades(List<Double> grades) {
-    double sum = 0.0;
-    for (double grade : grades) {
-      sum += grade;
-    }
-
-    return sum;
-  }
-
-  public double avgBeforeExam() {
-    double sumLabGrades = sumGrades(labGrades);
-    double sumCourseGrades = sumGrades(courseGrades);
-
-    int nbGrades = labGrades.size() + courseGrades.size();
-
-    // 2*COEF psk rapporté à 100% il faut doubler le coef
-    return ((sumLabGrades * 2 * COEF_LAB + sumCourseGrades * 2 * COEF_COURSE) / nbGrades);
-
   }
 
   class OverviewSubmissionDTO {
@@ -174,27 +165,46 @@ public class EnrollmentController {
   }
 
   public void overview(Context ctx) {
-    Integer userId = ctx.pathParamAsClass("id", Integer.class).get();
+    Integer userId = ctx.pathParamAsClass("userId", Integer.class).get();
 
     User usr = users.get(userId);
 
     if (usr == null) {
-      throw new NotFoundResponse("Not found: No user with this id exist");
+      throw new NotFoundResponse("Not found: No user with this id");
+    }
+
+    LocalDateTime lastKnownModification = ctx.headerAsClass("If-Unmodified-Since", LocalDateTime.class)
+        .getOrDefault(null);
+
+    if (lastKnownModification != null) {
+      LocalDateTime lastModified = cacheOverview.get(userId);
+      if (lastKnownModification != null && lastModified.isAfter(lastKnownModification)) {
+        throw new PreconditionFailedResponse();
+      }
     }
 
     List<OverviewSubmissionDTO> overviewBySubjects = new ArrayList<>();
 
-    // User found - Set the response body with the overview
-    for (Subject sub : subjects) {
-      OverviewSubmissionDTO overview = new OverviewSubmissionDTO();
-      overview.subject = sub;
-      overview.avgBeforeExam = overview.subject.avgBeforeExam();
-      overview.prevAvg = overview.subject.previsionnalAvg();
+    for (Enrollment e : enrollments) {
+      if (e.userId == userId) {
+        OverviewSubmissionDTO overview = new OverviewSubmissionDTO();
 
-      overviewBySubjects.add(overview);
+        overview.subject = subjects.get(e.subjectId);
+        overview.avgBeforeExam = e.avgBeforeExam();
+        overview.prevAvg = e.previsionnalAvg();
+
+        overviewBySubjects.add(overview);
+      }
     }
 
+    if (overviewBySubjects.isEmpty()) {
+      throw new NotFoundResponse("No subject associated with this user");
+    }
+
+    LocalDateTime lastModified = cacheOverview.getOrDefault(userId, LocalDateTime.now());
+
     ctx.status(HttpStatus.OK);
+    ctx.header("Last-Modified", String.valueOf(lastModified));
     ctx.json(overviewBySubjects);
   }
 }
