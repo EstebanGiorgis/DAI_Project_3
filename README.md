@@ -1,21 +1,18 @@
 # Users API
 
-The users API allows to manage users. It uses the HTTP protocol and the JSON
-format.
+The users API allows to manage users. It uses the HTTP protocol and the JSON format.
 
 The API is based on the CRUD pattern. It has the following operations:
 
 - Create a new user
-- Get one user's overview by its ID
 - Update a user
 - Delete a user
-
 
 ## Endpoints
 
 ### Create a new user
 
-- `POST /users`
+- `POST /users/`
 
 Create a new user.
 
@@ -46,7 +43,7 @@ The response body contains a JSON object with the following properties:
 
 ### Modify an existing user
 
-- `POST /user/{id}`
+- `POST /users/{id}`
 
 Update user infos
 
@@ -74,7 +71,7 @@ The response contains a JSON with the following properties :
 
 ### Delete an existing user
 
-- `DELETE /user/{id}`
+- `DELETE /users/{id}`
 
 Delete user
 
@@ -107,7 +104,7 @@ The API is based on the CRUD pattern. It has the following operations:
 
 ### Create a new subject
 
-- `POST /subjects`
+- `POST /subjects/`
 
 Create a new subject.
 
@@ -151,7 +148,7 @@ The request contains a JSON object with the following possible properties (depen
 #### Response
 
 The response contains a JSON with the following properties :
-- `id` - The unique identifier of the user
+- `id` - The unique identifier of the subject
 - `shortName` - The short form of the subject's name
 - `fullName` - The full name of the subject
 
@@ -224,7 +221,7 @@ In addition the `Last-Modified` header is updated with a new timestamp
 
 ### Add a grade to an enrollment
 
-- `POST /enrollment/users/{userId}/subjects/{subjectId}`
+- `POST /enrollment/users/{userId}/subjects/{subjectId}/addGrade`
 
 Add grade (lab or course) to an existing enrollment
 
