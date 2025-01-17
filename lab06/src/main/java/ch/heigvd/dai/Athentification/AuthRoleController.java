@@ -1,4 +1,4 @@
-package ch.heigvd.poo;
+package ch.heigvd.dai;
 
 import io.javalin.http.Context;
 import io.javalin.http.ForbiddenResponse;
