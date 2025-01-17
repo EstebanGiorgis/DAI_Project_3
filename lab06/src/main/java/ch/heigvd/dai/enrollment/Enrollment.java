@@ -25,43 +25,62 @@ public class Enrollment {
     this.courseGrades = new ArrayList<>();
   }
 
-  public double avgBeforeExam() {
-    double sumLabGrades = sumGrades(labGrades);
-    double sumCourseGrades = sumGrades(courseGrades);
-
-    int nbGrades = labGrades.size() + courseGrades.size();
-
-    // 2*COEF psk rapporté à 100% il faut doubler le coef
-    return ((sumLabGrades * 2 * Subject.COEF_LAB + sumCourseGrades * 2 * Subject.COEF_COURSE) / nbGrades);
-
+  private double calculateAverageIfPresent(List<Double> grades) {
+    if (grades == null || grades.isEmpty()) {
+      return 0.0;
+    }
+    return grades.stream().mapToDouble(Double::doubleValue).sum() / grades.size();
   }
 
-  private double sumGrades(List<Double> grades) {
-    double sum = 0.0;
-    for (double grade : grades) {
-      sum += grade;
+  public double avgBeforeExam() {
+    double labAvg = calculateAverageIfPresent(labGrades);
+    double courseAvg = calculateAverageIfPresent(courseGrades);
+
+    double totalWeight = 0.0;
+    double weightedSum = 0.0;
+
+    // Add lab component if there are lab grades
+    if (!labGrades.isEmpty()) {
+      weightedSum += labAvg * Subject.COEF_LAB;
+      totalWeight += Subject.COEF_LAB;
     }
 
-    return sum;
+    // Add course component if there are course grades
+    if (!courseGrades.isEmpty()) {
+      weightedSum += courseAvg * Subject.COEF_COURSE;
+      totalWeight += Subject.COEF_COURSE;
+    }
+
+    // If no grades at all, return 0
+    if (totalWeight == 0.0) {
+      return 0.0;
+    }
+
+    // Return weighted average on the 1-6 scale
+    return weightedSum / totalWeight;
+
   }
 
   public ConcurrentHashMap<Double, Double> previsionnalAvg() {
 
     ConcurrentHashMap<Double, Double> previsions = new ConcurrentHashMap<>();
+    double currentAvg = avgBeforeExam();
 
-    for (double i = 1.0; i <= 6.0; i += 0.5) {
-      double avg = processAvgWithExam(i);
-      previsions.put(i, avg);
+    // If we have no grades yet, the final grade will just be half of the exam grade
+    if (currentAvg == 0.0) {
+      for (double examGrade = 1.0; examGrade <= 6.0; examGrade += 0.5) {
+        previsions.put(examGrade, examGrade);
+      }
+      return previsions;
+    }
+
+    // Calculate previsional averages for different exam grades (50% current
+    // average, 50% exam)
+    for (double examGrade = 1.0; examGrade <= 6.0; examGrade += 0.5) {
+      double finalAvg = (currentAvg + examGrade) / 2.0;
+      previsions.put(examGrade, finalAvg);
     }
 
     return previsions;
-  }
-
-  private double processAvgWithExam(double avg) {
-    double sumLabGrades = sumGrades(labGrades);
-    double sumCourseGrades = sumGrades(courseGrades);
-
-    int nbGrades = labGrades.size() + courseGrades.size();
-    return ((((sumLabGrades * Subject.COEF_LAB + sumCourseGrades * Subject.COEF_COURSE) / nbGrades) + avg) / 2);
   }
 }

@@ -42,6 +42,8 @@ public class UsersController {
     user.id = userId.getAndIncrement();
     user.firstName = newUser.firstName;
     user.lastName = newUser.lastName;
+    user.username = newUser.username;
+    user.password = newUser.password;
 
     users.put(user.id, user);
 

@@ -24,7 +24,9 @@ public class Main {
     SubjectController subjectsController = new SubjectController(subjects, subjectsCache);
     EnrollmentController enrollmentController = new EnrollmentController(users, subjects);
 
-    Javalin app = Javalin.create();
+    Javalin app = Javalin.create(config -> {
+      config.validation.register(LocalDateTime.class, LocalDateTime::parse);
+    });
 
     // CRUD users
     app.post("/users/", usersController::create);
@@ -39,7 +41,7 @@ public class Main {
     // Enrollment (Links user and subjects)
     app.post("/enrollment/users/{userId}/subjects/{subjectId}", enrollmentController::create);
     app.post("/enrollment/users/{userId}/subjects/{subjectId}/addGrade", enrollmentController::addGradeToSubject);
-    app.delete("/enrollment/users/{userId}/subjects{subjectId}", enrollmentController::delete);
+    app.delete("/enrollment/users/{userId}/subjects/{subjectId}", enrollmentController::delete);
     app.get("/enrollment/users/{userId}/overview", enrollmentController::overview);
     app.start(PORT);
 

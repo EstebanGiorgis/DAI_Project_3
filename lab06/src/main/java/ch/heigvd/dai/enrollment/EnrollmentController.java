@@ -14,6 +14,25 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.aayushatharva.brotli4j.common.annotations.Local;
 
+class OverviewSubmissionDTO {
+  public Subject subject;
+
+  public double avgBeforeExam;
+  public Map<Double, Double> prevAvg;
+
+  OverviewSubmissionDTO() {
+  }
+}
+
+class GradeSubmissionDTO {
+
+  public String gradeType;
+  public Double grade;
+
+  GradeSubmissionDTO() {
+  }
+}
+
 public class EnrollmentController {
 
   private final ConcurrentHashMap<Integer, User> users;
@@ -77,7 +96,8 @@ public class EnrollmentController {
       throw new NotFoundResponse("Subject not found");
     }
 
-    LocalDateTime lastKnownModification = ctx.headerAsClass("If-Unmodified-Since", LocalDateTime.class).get();
+    LocalDateTime lastKnownModification = ctx.headerAsClass("If-Unmodified-Since", LocalDateTime.class)
+        .getOrDefault(null);
     if (lastKnownModification != null) {
       LocalDateTime lastModified = cacheOverview.get(userId);
 
@@ -88,7 +108,7 @@ public class EnrollmentController {
 
     int enrollmentIdx = -1;
     for (Enrollment e : enrollments) {
-      if (e.userId == userId && e.subjectId == subjectId) {
+      if (e.userId.equals(userId) && e.subjectId.equals(subjectId)) {
         enrollmentIdx = enrollments.indexOf(e);
       }
     }
@@ -103,14 +123,6 @@ public class EnrollmentController {
       ctx.status(HttpStatus.NO_CONTENT);
     } else {
       throw new NotFoundResponse("Enrollment not found");
-    }
-  }
-
-  class GradeSubmissionDTO {
-    String gradeType;
-    Double grade;
-
-    GradeSubmissionDTO() {
     }
   }
 
@@ -152,16 +164,6 @@ public class EnrollmentController {
 
     ctx.header("Last-Modified", String.valueOf(now));
     ctx.status(HttpStatus.OK);
-  }
-
-  class OverviewSubmissionDTO {
-    protected Subject subject;
-
-    protected double avgBeforeExam;
-    protected Map<Double, Double> prevAvg;
-
-    OverviewSubmissionDTO() {
-    }
   }
 
   public void overview(Context ctx) {
