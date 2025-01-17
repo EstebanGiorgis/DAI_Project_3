@@ -1,5 +1,6 @@
 package ch.heigvd.dai.users;
 
+import ch.heigvd.dai.data.Data;
 import ch.heigvd.dai.subjects.Subject;
 
 import io.javalin.http.*;
@@ -23,12 +24,14 @@ public class UsersController {
   }
 
   public void create(Context ctx) {
+    System.out.println(ctx.body());
     User newUser = ctx.bodyValidator(User.class)
         .check(obj -> obj.firstName != null, "Missing first name")
         .check(obj -> obj.lastName != null, "Missing last name")
         .check(obj -> obj.username != null, "Missing username")
         .check(obj -> obj.password != null, "Missing password")
         .get();
+    System.out.println("after verif");
 
     for (User u : users.values()) {
       if (u.username.equalsIgnoreCase(newUser.username)) {
@@ -46,6 +49,12 @@ public class UsersController {
     user.password = newUser.password;
 
     users.put(user.id, user);
+
+    try (Data<User> data = new Data<>(User.class)) {
+      data.save(user);
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
 
     LocalDateTime now = LocalDateTime.now();
     usersCache.put(user.id, now);
