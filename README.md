@@ -385,5 +385,99 @@ AuthRoleController.checkRole(Context requestContent, Set<Role> permittedRoles);
 - **Description:** Stores the role of the authenticated user (e.g., `LOGGED_IN`, `ADMIN`).
 - **Lifetime:** Session duration.
 
+# Setup Web Infrastructure
 
+## Generate SSH Key
 
+For authentication we will need a ssh key, so generate it now to use it later
+- Generate ssh-key with 
+```
+ssh-keygen
+```
+<p align="center">
+  <img src="./images/1-Generate_SSH-Key.png" alt="Create ressource">
+</p>
+
+## Create virtual machine
+
+- Create new ressource on azure
+<p align="left">
+  <img src="./images/1-Create_Ressource_1.png" alt="Create ressource">
+</p>
+
+- Select the `Virtual Machine` ressource
+
+<p align="left">
+  <img src="./images/1-Create_Ressource_2.png" alt="Create ressource">
+</p>
+
+- Setup ressource  
+
+  - On azure, fill the form with these informations to create the VM:
+    - Project details
+        - **Subscription**: Azure for Students
+        - **Resource group**: Create new with the name heig-vd-dai-course
+    - Instance details
+       - **Virtual machine name**: practical-work-3
+       - **Region**: (Europe) West Europe
+       - **Availability options**: No infrastructure redundancy required
+       - **Security type**: Trusted launch virtual machines (the default)
+       - **Image**: Ubuntu Server 24.04 LTS - x64 Gen2 (the default)
+       - **VM architecture**: x64
+       - **Size**: Standard_B1s - you might need to click "See all sizes" to see this option
+    - Administrator account
+        - **Authentication type**: SSH public key
+        - **Username**: ubuntu
+        - **SSH public key source**: Use existing public key
+        - **SSH public key**: Paste public key previously generated here    
+      - Inbound port rules
+        - **Public inbound ports**: Allow selected ports
+        - **Select inbound ports**: HTTP (80), HTTPS (443), SSH (22)
+
+  Click on `Review + create`
+
+  Wait for the VM to be ready
+
+## Setup virtual machine
+
+- Connect to the virtual machine with its public ip address :
+```
+ssh ubuntu@40.115.3.193
+```
+
+If the key was created in an other folder than .ssh, add -i parameter to the command to specify the path where your key is stored  
+```
+# In our case
+ssh -i /home/enigma/kDrive/HEIG-VD/DAI/labo/3-WebApp/practical_work ubuntu@40.115.3.193
+```
+
+- Update packages on the VM and reboot to apply
+```
+sudo apt update
+sudo apt upgrade
+sudo reboot
+```
+
+## Acquire domain name
+
+Go to duckdns.org and get a domain name
+
+- Set the IP address of the A record (current IP field) with the public address of the server
+<p align="left">
+  <img src="./images/2-Setup_DNS_entry.png" alt="Create ressource">
+</p>
+
+- Verify that resolution works
+```
+nslookup amifucked.duckdns.org
+```
+
+Should return something like this
+```
+Server: 127.0.0.53
+Address: 127.0.0.53#53
+
+Non-authoritative answer:
+Name: amifucked.duckdns.org
+Address: 40.115.3.193
+```
