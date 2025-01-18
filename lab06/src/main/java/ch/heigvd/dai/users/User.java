@@ -1,5 +1,6 @@
 package ch.heigvd.dai.users;
 
+
 public class User {
 
   public Integer id;

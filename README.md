@@ -306,7 +306,7 @@ Authenticate a user and create cookies with its userId and for its role.
 
 The request body must contain a JSON object with the following properties:
 
-- `email` - The user's email address (required).
+- `usename` - The user's email address (required).
 - `password` - The user's password (required).
 
 #### Response
@@ -358,7 +358,7 @@ AuthRoleController.checkRole(Context requestContent, Set<Role> permittedRoles);
 ```
 
 - `requestContent` - The HTTP context of the request.
-  - `permittedRoles` - Every possible roles
+- `permittedRoles` - Every possible roles
 
 #### Behavior
 
@@ -382,7 +382,7 @@ AuthRoleController.checkRole(Context requestContent, Set<Role> permittedRoles);
 ### Role Cookie
 
 - **Name:** `role`
-- **Description:** Stores the role of the authenticated user (e.g., `LOGGED_IN`, `ADMIN`).
+- **Description:** Stores the role of the authenticated user
 - **Lifetime:** Session duration.
 
 

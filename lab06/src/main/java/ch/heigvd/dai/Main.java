@@ -8,6 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import ch.heigvd.dai.users.*;
 import ch.heigvd.dai.subjects.*;
 import ch.heigvd.dai.enrollment.*;
+import ch.heigvd.dai.Authentification.*;
 
 public class Main {
   public static final int PORT = 8080;
@@ -20,6 +21,7 @@ public class Main {
     ConcurrentHashMap<Integer, Subject> subjects = new ConcurrentHashMap<>();
     ConcurrentHashMap<Integer, LocalDateTime> subjectsCache = new ConcurrentHashMap<>();
 
+    AuthController authController = new AuthController(users);
     UsersController usersController = new UsersController(users, usersCache);
     SubjectController subjectsController = new SubjectController(subjects, subjectsCache);
     EnrollmentController enrollmentController = new EnrollmentController(users, subjects);
@@ -28,6 +30,10 @@ public class Main {
       config.validation.register(LocalDateTime.class, LocalDateTime::parse);
     });
 
+    // Login et Logout
+    app.post("/login", authController::login);
+    app.post("/logout", authController::logout);
+
     // CRUD users
     app.post("/users/", usersController::create);
     app.put("/users/{id}", usersController::update);
@@ -35,7 +41,7 @@ public class Main {
 
     // CRUD Subject
     app.post("/subjects/", subjectsController::create);
-    app.post("/subjects/{id}", subjectsController::update);
+    app.put("/subjects/{id}", subjectsController::update);
     app.delete("/subjects/{id}", subjectsController::delete);
 
     // Enrollment (Links user and subjects)
@@ -44,7 +50,5 @@ public class Main {
     app.delete("/enrollment/users/{userId}/subjects/{subjectId}", enrollmentController::delete);
     app.get("/enrollment/users/{userId}/overview", enrollmentController::overview);
     app.start(PORT);
-
   }
-
 }

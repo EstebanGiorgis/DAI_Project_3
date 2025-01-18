@@ -1,7 +1,5 @@
 package ch.heigvd.dai.users;
 
-import ch.heigvd.dai.subjects.Subject;
-
 import io.javalin.http.*;
 import java.util.ArrayList;
 import java.util.List;
