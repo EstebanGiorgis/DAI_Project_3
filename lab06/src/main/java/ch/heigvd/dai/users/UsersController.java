@@ -4,8 +4,9 @@ import ch.heigvd.dai.data.Data;
 import ch.heigvd.dai.subjects.Subject;
 
 import io.javalin.http.*;
-import org.dizitart.no2.NitriteId;
-import org.dizitart.no2.filters.Filters;
+import org.dizitart.no2.exceptions.NitriteException;
+import org.dizitart.no2.exceptions.UniqueConstraintException;
+import org.dizitart.no2.objects.filters.ObjectFilters;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -43,11 +44,7 @@ public class UsersController {
     user.username = newUser.username;
     user.password = newUser.password;
 
-    try (Data<User> data = new Data<>(User.class)) {
-      data.save(user);
-    } catch (Exception e) {
-      e.printStackTrace();
-    }
+    Data.create(user, User.class);
 
     LocalDateTime now = LocalDateTime.now();
     usersCache.put(user.id, now);
@@ -70,86 +67,49 @@ public class UsersController {
       throw new PreconditionFailedResponse();
     }
 
-    // TODO: Do not assert empty params, just update present ones
-    User updateUser = ctx.bodyValidator(User.class)
-        .check(obj -> obj.firstName != null, "Missing first name")
-        .check(obj -> obj.lastName != null, "Missing last name")
-        .get();
+    User updateUser = ctx.bodyAsClass(User.class);
 
-    try (Data<User> data = new Data<>(User.class)) {
-      NitriteId nitriteId = NitriteId.createId(Long.valueOf(id));
-      User usr = data.repository.getById(nitriteId);
-      usr.firstName = updateUser.firstName;
-      usr.lastName = updateUser.lastName;
-      data.update(usr);
-      LocalDateTime now;
-      if (usersCache.containsKey(usr.id)) {
-        now = usersCache.get(usr.id);
-      } else {
-        now = LocalDateTime.now();
-        usersCache.put(usr.id, now);
+    User usr = Data.get(id.toString(), User.class, true);
 
-        usersCache.remove(RESERVED_ID_TO_IDENTIFY_ALL_USERS);
-      }
-
-      ctx.status(HttpStatus.CREATED);
-      ctx.header("Last-Modified", String.valueOf(now));
-      ctx.json(usr);
-
-    } catch (Exception e) {
-      e.printStackTrace();
+    if(usr == null) {
+      throw new NotFoundResponse();
     }
+
+    if (updateUser.firstName != null) {
+      usr.firstName = updateUser.firstName;
+    }
+    if (updateUser.lastName != null) {
+      usr.lastName = updateUser.lastName;
+    }
+    if(updateUser.password != null) {
+      usr.password = updateUser.password;
+    }
+    if(updateUser.username != null) {
+      usr.username = updateUser.username;
+    }
+
+    Data.update(usr, User.class);
+    LocalDateTime now;
+    if (usersCache.containsKey(usr.id)) {
+      now = usersCache.get(usr.id);
+    } else {
+      now = LocalDateTime.now();
+      usersCache.put(usr.id, now);
+      usersCache.remove(RESERVED_ID_TO_IDENTIFY_ALL_USERS);
+    }
+
+    ctx.status(HttpStatus.CREATED);
+    ctx.header("Last-Modified", String.valueOf(now));
+    ctx.json(usr);
   }
 
   public void delete(Context ctx) {
     Integer id = ctx.pathParamAsClass("id", Integer.class).get();
 
-    try (Data<User> data = new Data<>(User.class)) {
-      NitriteId nitriteId = NitriteId.createId(Long.valueOf(id));
-      User usr = data.repository.getById(nitriteId);
-      data.delete(usr);
-      usersCache.remove(id);
-      usersCache.remove(RESERVED_ID_TO_IDENTIFY_ALL_USERS);
-      ctx.status(HttpStatus.NO_CONTENT);
-    } catch (Exception e) {
-      e.printStackTrace();
-    }
-  }
+    Data.delete(id.toString(), User.class, true);
 
-  // INFO: Can be used if we implement a admin domain
-  public void getOne(Context ctx) {
-    Integer id = ctx.pathParamAsClass("id", Integer.class).get();
-
-    try (Data<User> data = new Data<>(User.class)) {
-      NitriteId nitriteId = NitriteId.createId(Long.valueOf(id));
-      User usr = data.repository.getById(nitriteId);
-      if (usr == null) {
-        throw new NotFoundResponse();
-      }
-      ctx.json(usr);
-    } catch (Exception e) {
-      e.printStackTrace();
-    }
-  }
-
-  // INFO: Can be used if we implement a admin domain
-  public void getMany(Context ctx) {
-    String firstName = ctx.queryParam("firstName");
-    String lastName = ctx.queryParam("lastName");
-
-    try (Data<User> data = new Data<>(User.class)) {
-      List<User> usrs = data.repository.find().toList();
-      Iterator<User> iterator = usrs.iterator();
-      while (iterator.hasNext()) {
-        User usr = iterator.next();
-        if (firstName != null && !usr.firstName.equalsIgnoreCase(firstName) ||
-                lastName != null && !usr.lastName.equalsIgnoreCase(lastName)) {
-          iterator.remove();
-        }
-      }
-      ctx.json(usrs);
-    } catch (Exception e) {
-      e.printStackTrace();
-    }
+    usersCache.remove(id);
+    usersCache.remove(RESERVED_ID_TO_IDENTIFY_ALL_USERS);
+    ctx.status(HttpStatus.NO_CONTENT);
   }
 }
