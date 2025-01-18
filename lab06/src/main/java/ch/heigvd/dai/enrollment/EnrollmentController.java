@@ -100,6 +100,8 @@ public class EnrollmentController {
         throw new BadRequestResponse("Grade type is wrong");
     }
 
+    Data.update(enr, Enrollment.class);
+
     LocalDateTime now = LocalDateTime.now();
 
     cacheOverview.put(userId, now);
