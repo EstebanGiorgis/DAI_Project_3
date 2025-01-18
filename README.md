@@ -481,3 +481,165 @@ Non-authoritative answer:
 Name: amifucked.duckdns.org
 Address: 40.115.3.193
 ```
+
+## Setup environment for docker and traefik
+
+### Create the needed folder structure to contain the docker compose file and everything needed to run the app
+
+```
+# Create a directory on the server's home directory
+mkdir webapp
+cd webapp
+
+# Clone the java project in the folder
+git clone https://github.com/EstebanGiorgis/DAI_Project_3.git
+
+# Create a .env file on the webapp directory that must contain these informations
+
+## The email address for Let's Encrypt
+TRAEFIK_ACME_EMAIL=nils.donatantonio@heig-vd.ch
+
+## The provider of the DNS challenge (see https://doc.traefik.io/traefik/https/acme/#providers)
+## The configuration of the provider is in the dns-challenge.env file
+TRAEFIK_ACME_DNS_PROVIDER=duckdns
+
+## The root domain name
+TRAEFIK_ROOT_FULLY_QUALIFIED_DOMAIN_NAME=amifucked.duckdns.org
+
+## The fully qualified domain name to access Traefik
+TRAEFIK_FULLY_QUALIFIED_DOMAIN_NAME=traefik.${TRAEFIK_ROOT_FULLY_QUALIFIED_DOMAIN_NAME}
+
+## Enable the Traefik dashboard
+TRAEFIK_ENABLE_DASHBOARD=true
+
+## The image version to use for Traefik
+TRAEFIK_IMAGE_VERSION=latest
+
+
+
+# Create a dns-challenge.env file containing your DuckDNS token
+
+## DuckDNS token
+DUCKDNS_TOKEN=<YourToken> # Not adding mine here for obvious security reasons
+
+
+# Create a secrets/ directory that will contain username and password of users authorized to access traefik
+
+## Still from ~/webapp
+mkdir secrets
+
+## We will use htpasswd to generate the account and hash the password
+## If htpasswd is not installed type this command before
+sudo apt install apache2-utils
+
+## Then 
+htpasswd -c secrets/auth-users.txt admin
+## Then enter the wanted password for this account
+```
+
+### Create DockerFile for the webapp
+In the java project directory, create a DockerFile containing these informations
+```
+FROM maven:3.8.4-openjdk-17 as builder
+
+WORKDIR /app
+COPY . .
+RUN mvn clean package
+
+FROM openjdk:17-slim
+WORKDIR /app
+COPY --from=builder /app/target/lab06-1.0-SNAPSHOT.jar app.jar
+EXPOSE 8080
+CMD ["java", "-jar", "app.jar"]
+```
+ 
+### Setup docker-compose.yaml
+
+Create a docker-compose.yaml file in the webapp directory and setup traefik, the web application and the database
+
+```
+networks:
+  traefik_network:
+    name: traefik_network
+
+secrets:
+  # We create a Docker secret to store the basic-auth users
+  auth_users:
+    file: ./secrets/auth-users.txt
+
+services:
+  traefik:
+    image: traefik:${TRAEFIK_IMAGE_VERSION:-latest}
+    command:
+      ## Global
+      # Uncomment next line when testing
+      # - --log.level=DEBUG
+      - --api.dashboard=${TRAEFIK_ENABLE_DASHBOARD:-false}
+      ## Docker
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      ## Entrypoints
+      - --entrypoints.http.address=:80
+      - --entrypoints.http.http.redirections.entrypoint.to=https
+      - --entrypoints.http.http.redirections.entrypoint.scheme=https
+      - --entrypoints.http.http.redirections.entrypoint.permanent=true
+      - --entrypoints.https.address=:443
+      - --entrypoints.https.http.tls=true
+      - --entrypoints.https.http.tls.certresolver=letsencrypt
+      # We ask Let's Encrypt to generate certificates for our root domain and wildcard subdomains
+      - --entrypoints.https.http.tls.domains[0].main=${TRAEFIK_ROOT_FULLY_QUALIFIED_DOMAIN_NAME}
+      - --entrypoints.https.http.tls.domains[0].sans=*.${TRAEFIK_ROOT_FULLY_QUALIFIED_DOMAIN_NAME}
+      ## Certificates
+      # Uncomment next line when testing
+      # - --certificatesResolvers.letsencrypt.acme.caServer=https://acme-staging-v02.api.letsencrypt.org/directory
+      - --certificatesresolvers.letsencrypt.acme.email=${TRAEFIK_ACME_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      # We switch to DNS-01 challenge to generate certificates
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge=true
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=${TRAEFIK_ACME_DNS_PROVIDER}
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge.delayBeforeCheck=30
+    restart: unless-stopped
+    env_file:
+      # We load the environment variables from the .env file for the DNS challenge
+      - dns-challenge.env
+    networks:
+      - traefik_network
+    ports:
+      - 80:80
+      - 443:443
+    secrets:
+      - auth_users
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./letsencrypt:/letsencrypt
+    labels:
+      ## Traefik
+      - traefik.enable=true
+      - traefik.docker.network=traefik_network
+      ## Middlewares
+      # This enables the basic-auth middleware using the Docker secret
+      - traefik.http.middlewares.basic-auth.basicauth.usersFile=/run/secrets/auth_users
+      ## Routers
+      - traefik.http.routers.traefik.entrypoints=https
+      - traefik.http.routers.traefik.rule=Host(`${TRAEFIK_FULLY_QUALIFIED_DOMAIN_NAME}`)
+      - traefik.http.routers.traefik.service=api@internal
+      - traefik.http.routers.traefik.middlewares=basic-auth
+java-app:
+    build:
+      context: ./DAI_Project_3/lab06
+      dockerfile: Dockerfile
+    networks:
+      - traefik_network
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik_network
+      - traefik.http.routers.java-app.entrypoints=https
+      - traefik.http.routers.java-app.rule=Host(`${TRAEFIK_ROOT_FULLY_QUALIFIED_DOMAIN_NAME}`)
+      - traefik.http.services.java-app.loadbalancer.server.port=8080
+```
+
+TODO: Add database configuration in dockercompose file
+
+
+
