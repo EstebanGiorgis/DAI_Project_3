@@ -3,11 +3,12 @@ package ch.heigvd.dai.data;
 import org.dizitart.no2.Nitrite;
 import org.dizitart.no2.objects.ObjectRepository;
 import org.dizitart.no2.objects.filters.ObjectFilters;
+import org.dizitart.no2.exceptions.UniqueConstraintException;
 import java.util.List;
 
 public class Data<T> implements AutoCloseable {
-    private final Nitrite db;
-    private final ObjectRepository<T> repository;
+    final Nitrite db;
+    public final ObjectRepository<T> repository;
 
     public Data(Class<T> type) {
         db = Nitrite.builder()
@@ -21,16 +22,16 @@ public class Data<T> implements AutoCloseable {
         repository.insert(data);
     }
 
-    public List<T> findAll() {
-        return repository.find().toList();
-    }
-
     public void update(T data) {
         repository.update(data);
     }
 
     public void delete(T data) {
         repository.remove(data);
+    }
+
+    public List<T> findByEqualFields(String field1, String field2) {
+        return repository.find(ObjectFilters.eq(field1, ObjectFilters.field(field2))).toList();
     }
 
     @Override

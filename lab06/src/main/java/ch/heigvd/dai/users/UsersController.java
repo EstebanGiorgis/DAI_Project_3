@@ -4,7 +4,11 @@ import ch.heigvd.dai.data.Data;
 import ch.heigvd.dai.subjects.Subject;
 
 import io.javalin.http.*;
+import org.dizitart.no2.NitriteId;
+import org.dizitart.no2.filters.Filters;
+
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -14,12 +18,10 @@ import java.time.LocalDateTime;
 public class UsersController {
 
   private final Integer RESERVED_ID_TO_IDENTIFY_ALL_USERS = -1;
-  private final ConcurrentHashMap<Integer, User> users;
   private final ConcurrentHashMap<Integer, LocalDateTime> usersCache;
   private final AtomicInteger userId = new AtomicInteger(1);
 
-  public UsersController(ConcurrentHashMap<Integer, User> users, ConcurrentHashMap<Integer, LocalDateTime> usersCache) {
-    this.users = users;
+  public UsersController(ConcurrentHashMap<Integer, LocalDateTime> usersCache) {
     this.usersCache = usersCache;
   }
 
@@ -31,13 +33,6 @@ public class UsersController {
         .check(obj -> obj.username != null, "Missing username")
         .check(obj -> obj.password != null, "Missing password")
         .get();
-    System.out.println("after verif");
-
-    for (User u : users.values()) {
-      if (u.username.equalsIgnoreCase(newUser.username)) {
-        throw new ConflictResponse("User already exists with this username");
-      }
-    }
 
     // Not using newUser for security purpose (be sure of the datas in the object)
     User user = new User();
@@ -47,8 +42,6 @@ public class UsersController {
     user.lastName = newUser.lastName;
     user.username = newUser.username;
     user.password = newUser.password;
-
-    users.put(user.id, user);
 
     try (Data<User> data = new Data<>(User.class)) {
       data.save(user);
@@ -83,58 +76,60 @@ public class UsersController {
         .check(obj -> obj.lastName != null, "Missing last name")
         .get();
 
-    User user = users.get(id);
+    try (Data<User> data = new Data<>(User.class)) {
+      NitriteId nitriteId = NitriteId.createId(Long.valueOf(id));
+      User usr = data.repository.getById(nitriteId);
+      usr.firstName = updateUser.firstName;
+      usr.lastName = updateUser.lastName;
+      data.update(usr);
+      LocalDateTime now;
+      if (usersCache.containsKey(usr.id)) {
+        now = usersCache.get(usr.id);
+      } else {
+        now = LocalDateTime.now();
+        usersCache.put(usr.id, now);
 
-    if (user == null) {
-      throw new NotFoundResponse();
+        usersCache.remove(RESERVED_ID_TO_IDENTIFY_ALL_USERS);
+      }
+
+      ctx.status(HttpStatus.CREATED);
+      ctx.header("Last-Modified", String.valueOf(now));
+      ctx.json(usr);
+
+    } catch (Exception e) {
+      e.printStackTrace();
     }
-
-    // TODO: Update should be done only on modified fields
-    user.firstName = updateUser.firstName;
-    user.lastName = updateUser.lastName;
-
-    users.put(id, user);
-
-    LocalDateTime now;
-    if (usersCache.containsKey(user.id)) {
-      now = usersCache.get(user.id);
-    } else {
-      now = LocalDateTime.now();
-      usersCache.put(user.id, now);
-
-      usersCache.remove(RESERVED_ID_TO_IDENTIFY_ALL_USERS);
-    }
-    ctx.status(HttpStatus.CREATED);
-    ctx.header("Last-Modified", String.valueOf(now));
-    ctx.json(user);
   }
 
   public void delete(Context ctx) {
     Integer id = ctx.pathParamAsClass("id", Integer.class).get();
 
-    if (!users.containsKey(id)) {
-      throw new NotFoundResponse("Not found: No user with this id exist");
+    try (Data<User> data = new Data<>(User.class)) {
+      NitriteId nitriteId = NitriteId.createId(Long.valueOf(id));
+      User usr = data.repository.getById(nitriteId);
+      data.delete(usr);
+      usersCache.remove(id);
+      usersCache.remove(RESERVED_ID_TO_IDENTIFY_ALL_USERS);
+      ctx.status(HttpStatus.NO_CONTENT);
+    } catch (Exception e) {
+      e.printStackTrace();
     }
-
-    users.remove(id);
-
-    usersCache.remove(id);
-
-    usersCache.remove(RESERVED_ID_TO_IDENTIFY_ALL_USERS);
-    ctx.status(HttpStatus.NO_CONTENT);
   }
 
   // INFO: Can be used if we implement a admin domain
   public void getOne(Context ctx) {
     Integer id = ctx.pathParamAsClass("id", Integer.class).get();
 
-    User user = users.get(id);
-
-    if (user == null) {
-      throw new NotFoundResponse();
+    try (Data<User> data = new Data<>(User.class)) {
+      NitriteId nitriteId = NitriteId.createId(Long.valueOf(id));
+      User usr = data.repository.getById(nitriteId);
+      if (usr == null) {
+        throw new NotFoundResponse();
+      }
+      ctx.json(usr);
+    } catch (Exception e) {
+      e.printStackTrace();
     }
-
-    ctx.json(user);
   }
 
   // INFO: Can be used if we implement a admin domain
@@ -142,20 +137,19 @@ public class UsersController {
     String firstName = ctx.queryParam("firstName");
     String lastName = ctx.queryParam("lastName");
 
-    List<User> users = new ArrayList<>();
-
-    for (User user : this.users.values()) {
-      if (firstName != null && !user.firstName.equalsIgnoreCase(firstName)) {
-        continue;
+    try (Data<User> data = new Data<>(User.class)) {
+      List<User> usrs = data.repository.find().toList();
+      Iterator<User> iterator = usrs.iterator();
+      while (iterator.hasNext()) {
+        User usr = iterator.next();
+        if (firstName != null && !usr.firstName.equalsIgnoreCase(firstName) ||
+                lastName != null && !usr.lastName.equalsIgnoreCase(lastName)) {
+          iterator.remove();
+        }
       }
-
-      if (lastName != null && !user.lastName.equalsIgnoreCase(lastName)) {
-        continue;
-      }
-
-      users.add(user);
+      ctx.json(usrs);
+    } catch (Exception e) {
+      e.printStackTrace();
     }
-
-    ctx.json(users);
   }
 }

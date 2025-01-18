@@ -20,7 +20,7 @@ public class Main {
     ConcurrentHashMap<Integer, Subject> subjects = new ConcurrentHashMap<>();
     ConcurrentHashMap<Integer, LocalDateTime> subjectsCache = new ConcurrentHashMap<>();
 
-    UsersController usersController = new UsersController(users, usersCache);
+    UsersController usersController = new UsersController(usersCache);
     SubjectController subjectsController = new SubjectController(subjects, subjectsCache);
     EnrollmentController enrollmentController = new EnrollmentController(users, subjects);
 
