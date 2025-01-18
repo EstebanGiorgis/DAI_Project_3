@@ -30,10 +30,6 @@ public class Data<T> implements AutoCloseable {
         repository.remove(data);
     }
 
-    public List<T> findByEqualFields(String field1, String field2) {
-        return repository.find(ObjectFilters.eq(field1, ObjectFilters.field(field2))).toList();
-    }
-
     @Override
     public void close() {
         if (db != null && !db.isClosed()) {
