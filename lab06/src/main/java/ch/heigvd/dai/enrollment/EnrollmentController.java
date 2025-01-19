@@ -70,6 +70,7 @@ public class EnrollmentController {
     if (lastKnownModification != null) {
       LocalDateTime lastModified = cacheOverview.get(userId);
 
+
       if (lastModified != null && lastModified.isAfter(lastKnownModification)) {
         throw new PreconditionFailedResponse();
       }

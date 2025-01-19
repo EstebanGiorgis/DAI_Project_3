@@ -64,6 +64,8 @@ public class UsersController {
     LocalDateTime lastKnownModification = ctx.headerAsClass("If-Unmodified-Since", LocalDateTime.class)
         .getOrDefault(null);
 
+
+    //Check if the recourse has been modified since the last time
     if (lastKnownModification != null && !usersCache.get(id).equals(lastKnownModification)) {
       throw new PreconditionFailedResponse();
     }
@@ -91,6 +93,8 @@ public class UsersController {
 
     Data.update(usr, User.class);
     LocalDateTime now;
+
+
     if (usersCache.containsKey(usr.id)) {
       now = usersCache.get(usr.id);
     } else {

@@ -38,6 +38,7 @@ public class Enrollment {
   }
 
   private double calculateAverageIfPresent(List<Double> grades) {
+
     if (grades == null || grades.isEmpty()) {
       return 0.0;
     }

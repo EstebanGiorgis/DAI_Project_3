@@ -14,5 +14,6 @@ public class Subject {
   public String fullName;
 
   public Subject() {
+    // Empty constructor for serialisation/deserialization
   }
 }
