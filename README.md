@@ -751,6 +751,17 @@ services:
 ## DNS configuration
 ![image](https://github.com/user-attachments/assets/71c3d69e-6628-48dd-9a33-a8f38f53005f)
 
+## Deploy, run and access the web applications with Docker Compose
+
+1. After connecting to the server via SSH, go to the /webapp directory using the command:
+   ``` cd webapp/ ```
+
+2. Ensure that all containers are stopped and removed by running the command:
+   ``` sudo docker compose down ```
+
+3. Start and create all containers with Docker Compose using the following command: ``` sudo docker compose up ```
+
+
 
 
 
