@@ -731,14 +731,14 @@ services:
       - traefik.http.routers.traefik.rule=Host(`${TRAEFIK_FULLY_QUALIFIED_DOMAIN_NAME}`)
       - traefik.http.routers.traefik.service=api@internal
       - traefik.http.routers.traefik.middlewares=basic-auth
-java-app:
+  java-app:
     build:
       context: ./DAI_Project_3/lab06
       dockerfile: Dockerfile
     networks:
       - traefik_network
     volumes:
-      - ./DAI_Project_3/lab06/database.db:/app/database/database.db
+      - ./DAI_Project_3/lab06/database:/app/database/
     restart: unless-stopped
     labels:
       - traefik.enable=true
