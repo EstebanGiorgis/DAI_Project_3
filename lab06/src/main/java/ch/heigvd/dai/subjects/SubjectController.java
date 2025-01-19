@@ -1,6 +1,10 @@
 package ch.heigvd.dai.subjects;
 
+import ch.heigvd.dai.data.Data;
+import ch.heigvd.dai.users.User;
 import io.javalin.http.*;
+import org.dizitart.no2.objects.filters.ObjectFilters;
+
 import java.time.LocalDateTime;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -8,13 +12,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class SubjectController {
 
   private final Integer RESERVED_ID_TO_IDENTIFY_ALL_USERS = -1;
-  private final ConcurrentHashMap<Integer, Subject> subjects;
   private final ConcurrentHashMap<Integer, LocalDateTime> subjectsCache;
   private final AtomicInteger subjectId = new AtomicInteger(1);
 
-  public SubjectController(ConcurrentHashMap<Integer, Subject> subjects,
-      ConcurrentHashMap<Integer, LocalDateTime> subjectsCache) {
-    this.subjects = subjects;
+  public SubjectController(ConcurrentHashMap<Integer, LocalDateTime> subjectsCache) {
     this.subjectsCache = subjectsCache;
   }
 
@@ -24,27 +25,13 @@ public class SubjectController {
         .check(obj -> obj.fullName != null, "Missing full name")
         .get();
 
-    // Subjects already created should be cached until modification
-    // This would prevent accessing the database everytime we need to check if name
-    // already exists
-
-    // First check if is cached
-    LocalDateTime lastKnownModification = ctx.headerAsClass("If-Unmodified-Since", LocalDateTime.class)
-        .getOrDefault(null);
-
-    for (Subject s : subjects.values()) {
-      if (s.shortName.equalsIgnoreCase(newSubject.shortName)) {
-        throw new ConflictResponse("Subject already exists with this name");
-      }
-    }
-
     Subject subject = new Subject();
 
     subject.id = subjectId.getAndIncrement();
     subject.shortName = newSubject.shortName;
     subject.fullName = newSubject.fullName;
 
-    subjects.put(subject.id, subject);
+    Data.create(subject, Subject.class);
 
     LocalDateTime now = LocalDateTime.now();
     subjectsCache.put(subject.id, now);
@@ -66,23 +53,22 @@ public class SubjectController {
       throw new PreconditionFailedResponse();
     }
 
-    Subject updateSub = ctx.bodyValidator(Subject.class).get();
+    Subject updateSub = ctx.bodyAsClass(Subject.class);
 
-    Subject sub = subjects.get(id);
+    Subject sub = Data.get(id.toString(), Subject.class, true);
 
-    if (sub == null) {
+    if(sub == null) {
       throw new NotFoundResponse();
     }
 
-    if (updateSub.shortName != null) {
+    if(updateSub.shortName != null) {
       sub.shortName = updateSub.shortName;
     }
-
-    if (updateSub.fullName != null) {
+    if(updateSub.fullName != null) {
       sub.fullName = updateSub.fullName;
     }
 
-    subjects.put(id, sub);
+    Data.update(sub, Subject.class);
 
     LocalDateTime now;
     if (subjectsCache.containsKey(sub.id)) {
@@ -100,24 +86,9 @@ public class SubjectController {
 
   public void delete(Context ctx) {
     Integer id = ctx.pathParamAsClass("id", Integer.class).get();
-
-    LocalDateTime lastKnownModification = ctx.headerAsClass("If-Unmodified-Since", LocalDateTime.class)
-        .getOrDefault(null);
-
-    if (lastKnownModification != null & !subjectsCache.get(id).equals(lastKnownModification)) {
-      throw new PreconditionFailedResponse();
-    }
-
-    if (!subjects.containsKey(id)) {
-      throw new NotFoundResponse();
-    }
-
-    subjects.remove(id);
-
+    Data.delete(id.toString(), Subject.class, true);
     subjectsCache.remove(id);
-
     subjectsCache.remove(RESERVED_ID_TO_IDENTIFY_ALL_USERS);
-
     ctx.status(HttpStatus.NO_CONTENT);
   }
 }

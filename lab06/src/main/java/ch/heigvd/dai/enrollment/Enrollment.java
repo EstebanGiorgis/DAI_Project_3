@@ -7,7 +7,18 @@ import java.util.ArrayList;
 
 import java.util.concurrent.ConcurrentHashMap;
 
+import ch.heigvd.dai.subjects.Subject;
+import org.dizitart.no2.objects.Id;
+import org.dizitart.no2.objects.Index;
+import org.dizitart.no2.objects.Indices;
+
+@Indices({
+        @Index(value = "userId"),
+        @Index(value = "subjectId")
+})
 public class Enrollment {
+  @Id
+  private String id;
   public Integer userId;
   public Integer subjectId;
 
@@ -15,17 +26,19 @@ public class Enrollment {
   public List<Double> labGrades;
 
   public Enrollment() {
-
+    this.courseGrades = new ArrayList<>();
+    this.labGrades = new ArrayList<>();
   }
 
   public Enrollment(Integer userId, Integer subjectId) {
+    this();
     this.userId = userId;
     this.subjectId = subjectId;
-    this.labGrades = new ArrayList<>();
-    this.courseGrades = new ArrayList<>();
+    this.id = userId + "_" + subjectId;
   }
 
   private double calculateAverageIfPresent(List<Double> grades) {
+
     if (grades == null || grades.isEmpty()) {
       return 0.0;
     }

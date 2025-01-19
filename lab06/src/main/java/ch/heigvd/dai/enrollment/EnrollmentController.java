@@ -8,11 +8,15 @@ import java.util.ArrayList;
 import java.util.Map;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.aayushatharva.brotli4j.common.annotations.Local;
+
+import ch.heigvd.dai.data.Data;
+import org.dizitart.no2.objects.filters.ObjectFilters;
 
 class OverviewSubmissionDTO {
   public Subject subject;
@@ -35,22 +39,9 @@ class GradeSubmissionDTO {
 
 public class EnrollmentController {
 
-  private final ConcurrentHashMap<Integer, User> users;
-  private final ConcurrentHashMap<Integer, Subject> subjects;
-
-  private final CopyOnWriteArrayList<Enrollment> enrollments;
-
-  private final CopyOnWriteArrayList<Double> labGrades;
-  private final CopyOnWriteArrayList<Double> courseGrades;
-
   private final ConcurrentHashMap<Integer, LocalDateTime> cacheOverview; // Integer = userId
 
-  public EnrollmentController(ConcurrentHashMap<Integer, User> users, ConcurrentHashMap<Integer, Subject> subjects) {
-    this.users = users;
-    this.subjects = subjects;
-    this.enrollments = new CopyOnWriteArrayList<>();
-    this.labGrades = new CopyOnWriteArrayList<>();
-    this.courseGrades = new CopyOnWriteArrayList<>();
+  public EnrollmentController() {
     this.cacheOverview = new ConcurrentHashMap<>();
   }
 
@@ -58,72 +49,34 @@ public class EnrollmentController {
     Integer userId = ctx.pathParamAsClass("userId", Integer.class).get();
     Integer subjectId = ctx.pathParamAsClass("subjectId", Integer.class).get();
 
-    if (!users.containsKey(userId)) {
-      throw new NotFoundResponse("User not found");
-    }
+    Enrollment en = new Enrollment(userId, subjectId);
 
-    if (!subjects.containsKey(subjectId)) {
-      throw new NotFoundResponse("Subject not found");
-    }
-
-    for (Enrollment e : enrollments) {
-      if (e.userId.equals(userId) && e.subjectId.equals(subjectId)) {
-        throw new ConflictResponse("Enrollment already exists");
-      }
-    }
-
-    Enrollment e = new Enrollment(userId, subjectId);
-
-    enrollments.add(e);
+    Data.create(en, Enrollment.class);
 
     LocalDateTime now = LocalDateTime.now();
     cacheOverview.put(userId, now);
 
     ctx.status(HttpStatus.CREATED);
     ctx.header("Last-Modified", String.valueOf(now));
-    ctx.json(e);
+    ctx.json(en);
   }
 
   public void delete(Context ctx) {
     Integer userId = ctx.pathParamAsClass("userId", Integer.class).get();
     Integer subjectId = ctx.pathParamAsClass("subjectId", Integer.class).get();
 
-    if (!users.containsKey(userId)) {
-      throw new NotFoundResponse("User not found");
-    }
-
-    if (!subjects.containsKey(subjectId)) {
-      throw new NotFoundResponse("Subject not found");
-    }
-
     LocalDateTime lastKnownModification = ctx.headerAsClass("If-Unmodified-Since", LocalDateTime.class)
         .getOrDefault(null);
     if (lastKnownModification != null) {
       LocalDateTime lastModified = cacheOverview.get(userId);
 
+
       if (lastModified != null && lastModified.isAfter(lastKnownModification)) {
         throw new PreconditionFailedResponse();
       }
     }
-
-    int enrollmentIdx = -1;
-    for (Enrollment e : enrollments) {
-      if (e.userId.equals(userId) && e.subjectId.equals(subjectId)) {
-        enrollmentIdx = enrollments.indexOf(e);
-      }
-    }
-
-    if (enrollmentIdx != -1) {
-      enrollments.remove(enrollmentIdx);
-
-      LocalDateTime now = LocalDateTime.now();
-      cacheOverview.put(userId, now);
-
-      ctx.header("Last-Modified", String.valueOf(now));
-      ctx.status(HttpStatus.NO_CONTENT);
-    } else {
-      throw new NotFoundResponse("Enrollment not found");
-    }
+    Data.delete(userId + "_" + subjectId, Enrollment.class, false);
+    ctx.status(HttpStatus.NO_CONTENT);
   }
 
   // TODO: Will probably need caching verifications as it is used in overview
@@ -135,28 +88,20 @@ public class EnrollmentController {
         .check(obj -> obj.grade != null, "Missing grade")
         .get();
 
-    int enrollmentIdx = -1;
-    for (Enrollment e : enrollments) {
-      if (e.userId == userId && e.subjectId == subjectId) {
-        enrollmentIdx = enrollments.indexOf(e);
-      }
-    }
+    Enrollment enr = Data.get(userId + "_" + subjectId, Enrollment.class, false);
 
-    if (enrollmentIdx == -1) {
-      throw new NotFoundResponse("No enrollment with these id exist");
-    }
-
-    Enrollment e = enrollments.get(enrollmentIdx);
     switch (grade.gradeType) {
       case "labGrade":
-        e.labGrades.add(grade.grade);
+        enr.labGrades.add(grade.grade);
         break;
       case "courseGrade":
-        e.courseGrades.add(grade.grade);
+        enr.courseGrades.add(grade.grade);
         break;
       default:
         throw new BadRequestResponse("Grade type is wrong");
     }
+
+    Data.update(enr, Enrollment.class);
 
     LocalDateTime now = LocalDateTime.now();
 
@@ -169,11 +114,7 @@ public class EnrollmentController {
   public void overview(Context ctx) {
     Integer userId = ctx.pathParamAsClass("userId", Integer.class).get();
 
-    User usr = users.get(userId);
-
-    if (usr == null) {
-      throw new NotFoundResponse("Not found: No user with this id");
-    }
+    User usr = Data.get(userId.toString(), User.class, true);
 
     LocalDateTime lastKnownModification = ctx.headerAsClass("If-Unmodified-Since", LocalDateTime.class)
         .getOrDefault(null);
@@ -186,15 +127,17 @@ public class EnrollmentController {
     }
 
     List<OverviewSubmissionDTO> overviewBySubjects = new ArrayList<>();
+    List<Enrollment> enrollments = Data.getAll(Enrollment.class);
+    if (enrollments == null) {
+      throw new NotFoundResponse("No enrollments found");
+    }
 
-    for (Enrollment e : enrollments) {
-      if (e.userId == userId) {
+    for (Enrollment enr : enrollments) {
+      if (Objects.equals(enr.userId, userId)) {
         OverviewSubmissionDTO overview = new OverviewSubmissionDTO();
-
-        overview.subject = subjects.get(e.subjectId);
-        overview.avgBeforeExam = e.avgBeforeExam();
-        overview.prevAvg = e.previsionnalAvg();
-
+        overview.subject = Data.get(enr.subjectId.toString(), Subject.class, true);
+        overview.avgBeforeExam = enr.avgBeforeExam();
+        overview.prevAvg = enr.previsionnalAvg();
         overviewBySubjects.add(overview);
       }
     }

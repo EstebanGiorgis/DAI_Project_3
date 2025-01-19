@@ -20,9 +20,9 @@ public class Main {
     ConcurrentHashMap<Integer, Subject> subjects = new ConcurrentHashMap<>();
     ConcurrentHashMap<Integer, LocalDateTime> subjectsCache = new ConcurrentHashMap<>();
 
-    UsersController usersController = new UsersController(users, usersCache);
-    SubjectController subjectsController = new SubjectController(subjects, subjectsCache);
-    EnrollmentController enrollmentController = new EnrollmentController(users, subjects);
+    UsersController usersController = new UsersController(usersCache);
+    SubjectController subjectsController = new SubjectController(subjectsCache);
+    EnrollmentController enrollmentController = new EnrollmentController();
 
     Javalin app = Javalin.create(config -> {
       config.validation.register(LocalDateTime.class, LocalDateTime::parse);
@@ -35,7 +35,7 @@ public class Main {
 
     // CRUD Subject
     app.post("/subjects/", subjectsController::create);
-    app.post("/subjects/{id}", subjectsController::update);
+    app.put("/subjects/{id}", subjectsController::update);
     app.delete("/subjects/{id}", subjectsController::delete);
 
     // Enrollment (Links user and subjects)
@@ -44,7 +44,5 @@ public class Main {
     app.delete("/enrollment/users/{userId}/subjects/{subjectId}", enrollmentController::delete);
     app.get("/enrollment/users/{userId}/overview", enrollmentController::overview);
     app.start(PORT);
-
   }
-
 }
