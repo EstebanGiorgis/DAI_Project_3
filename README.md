@@ -759,7 +759,7 @@ services:
 2. Ensure that all containers are stopped and removed by running the command:
    ``` sudo docker compose down ```
 
-3. Start and create all containers with Docker Compose using the following command: ``` sudo docker compose up ```
+3. Start and create all containers with Docker Compose by running the following command: ``` sudo docker compose up ```
 
 
 
