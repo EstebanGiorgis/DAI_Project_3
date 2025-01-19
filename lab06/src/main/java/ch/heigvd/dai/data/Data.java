@@ -17,7 +17,7 @@ public class Data<T> implements AutoCloseable {
 
     public Data(Class<T> type) {
         db = Nitrite.builder()
-                .filePath("database.db")
+                .filePath("/app/database/database.db")
                 .openOrCreate();
 
         repository = db.getRepository(type);
