@@ -8,6 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import ch.heigvd.dai.users.*;
 import ch.heigvd.dai.subjects.*;
 import ch.heigvd.dai.enrollment.*;
+import ch.heigvd.dai.Authentification.*;
 
 public class Main {
   public static final int PORT = 8080;
@@ -20,6 +21,7 @@ public class Main {
     ConcurrentHashMap<Integer, Subject> subjects = new ConcurrentHashMap<>();
     ConcurrentHashMap<Integer, LocalDateTime> subjectsCache = new ConcurrentHashMap<>();
 
+
     UsersController usersController = new UsersController(usersCache);
     SubjectController subjectsController = new SubjectController(subjectsCache);
     EnrollmentController enrollmentController = new EnrollmentController();
@@ -27,6 +29,10 @@ public class Main {
     Javalin app = Javalin.create(config -> {
       config.validation.register(LocalDateTime.class, LocalDateTime::parse);
     });
+
+    // Login et Logout
+    app.post("/login", authController::login);
+    app.post("/logout", authController::logout);
 
     // CRUD users
     app.post("/users/", usersController::create);
@@ -44,7 +50,5 @@ public class Main {
     app.delete("/enrollment/users/{userId}/subjects/{subjectId}", enrollmentController::delete);
     app.get("/enrollment/users/{userId}/overview", enrollmentController::overview);
     app.start(PORT);
-
   }
-
 }

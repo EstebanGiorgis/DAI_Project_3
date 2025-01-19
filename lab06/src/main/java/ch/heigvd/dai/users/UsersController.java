@@ -1,5 +1,6 @@
 package ch.heigvd.dai.users;
 
+
 import ch.heigvd.dai.data.Data;
 import ch.heigvd.dai.subjects.Subject;
 
