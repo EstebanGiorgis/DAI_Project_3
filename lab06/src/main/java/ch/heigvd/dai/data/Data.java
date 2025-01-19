@@ -35,6 +35,8 @@ public class Data<T> implements AutoCloseable {
 
   public static <T> void delete(String id, Class<T> type, boolean integerId) {
     try (Data<T> d = new Data<>(type)) {
+
+      //Retrieves the data in question
       T data = d.repository.find(ObjectFilters.eq("id", integerId ? Integer.parseInt(id) : id))
           .firstOrDefault();
       if (data == null) {
@@ -48,6 +50,7 @@ public class Data<T> implements AutoCloseable {
 
   public static <T> T get(String id, Class<T> type, boolean integerId) {
     try (Data<T> d = new Data<>(type)) {
+      //Retrieves the data in question
       return d.repository.find(ObjectFilters.eq("id", integerId ? Integer.parseInt(id) : id))
           .firstOrDefault();
     } catch (Exception e) {
@@ -57,6 +60,7 @@ public class Data<T> implements AutoCloseable {
 
   public static <T> List<T> getAll(Class<T> type) {
     try (Data<T> d = new Data<>(type)) {
+      //Retrieves all datas
       return d.repository.find()
           .toList();
     } catch (Exception e) {
@@ -66,6 +70,7 @@ public class Data<T> implements AutoCloseable {
 
   public static <T> void update(T data, Class<T> type) {
     try (Data<T> d = new Data<>(type)) {
+      //Update the data in question
       d.repository.update(data);
     } catch (UniqueConstraintException e) {
       throw new ConflictResponse(type.getSimpleName() + " already exists");
