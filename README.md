@@ -385,5 +385,263 @@ AuthRoleController.checkRole(Context requestContent, Set<Role> permittedRoles);
 - **Description:** Stores the role of the authenticated user
 - **Lifetime:** Session duration.
 
+# Setup Web Infrastructure
+
+## Generate SSH Key
+
+For authentication we will need a ssh key, so generate it now to use it later
+- Generate ssh-key with 
+```
+ssh-keygen
+```
+<p align="center">
+  <img src="./images/1-Generate_SSH-Key.png" alt="Create ressource">
+</p>
+
+## Create virtual machine
+
+- Create new ressource on azure
+<p align="left">
+  <img src="./images/1-Create_Ressource_1.png" alt="Create ressource">
+</p>
+
+- Select the `Virtual Machine` ressource
+
+<p align="left">
+  <img src="./images/1-Create_Ressource_2.png" alt="Create ressource">
+</p>
+
+- Setup ressource  
+
+  - On azure, fill the form with these informations to create the VM:
+    - Project details
+        - **Subscription**: Azure for Students
+        - **Resource group**: Create new with the name heig-vd-dai-course
+    - Instance details
+       - **Virtual machine name**: practical-work-3
+       - **Region**: (Europe) West Europe
+       - **Availability options**: No infrastructure redundancy required
+       - **Security type**: Trusted launch virtual machines (the default)
+       - **Image**: Ubuntu Server 24.04 LTS - x64 Gen2 (the default)
+       - **VM architecture**: x64
+       - **Size**: Standard_B1s - you might need to click "See all sizes" to see this option
+    - Administrator account
+        - **Authentication type**: SSH public key
+        - **Username**: ubuntu
+        - **SSH public key source**: Use existing public key
+        - **SSH public key**: Paste public key previously generated here    
+      - Inbound port rules
+        - **Public inbound ports**: Allow selected ports
+        - **Select inbound ports**: HTTP (80), HTTPS (443), SSH (22)
+
+  Click on `Review + create`
+
+  Wait for the VM to be ready
+
+## Setup virtual machine
+
+- Connect to the virtual machine with its public ip address :
+```
+ssh ubuntu@40.115.3.193
+```
+
+If the key was created in an other folder than .ssh, add -i parameter to the command to specify the path where your key is stored  
+```
+# In our case
+ssh -i /home/enigma/kDrive/HEIG-VD/DAI/labo/3-WebApp/practical_work ubuntu@40.115.3.193
+```
+
+- Update packages on the VM and reboot to apply
+```
+sudo apt update
+sudo apt upgrade
+sudo reboot
+```
+
+## Acquire domain name
+
+Go to duckdns.org and get a domain name
+
+- Set the IP address of the A record (current IP field) with the public address of the server
+<p align="left">
+  <img src="./images/2-Setup_DNS_entry.png" alt="Create ressource">
+</p>
+
+- Verify that resolution works
+```
+nslookup amifucked.duckdns.org
+```
+
+Should return something like this
+```
+Server: 127.0.0.53
+Address: 127.0.0.53#53
+
+Non-authoritative answer:
+Name: amifucked.duckdns.org
+Address: 40.115.3.193
+```
+
+## Setup environment for docker and traefik
+
+### Create the needed folder structure to contain the docker compose file and everything needed to run the app
+
+```
+# Create a directory on the server's home directory
+mkdir webapp
+cd webapp
+
+# Clone the java project in the folder
+git clone https://github.com/EstebanGiorgis/DAI_Project_3.git
+
+# Create a .env file on the webapp directory that must contain these informations
+
+## The email address for Let's Encrypt
+TRAEFIK_ACME_EMAIL=nils.donatantonio@heig-vd.ch
+
+## The provider of the DNS challenge (see https://doc.traefik.io/traefik/https/acme/#providers)
+## The configuration of the provider is in the dns-challenge.env file
+TRAEFIK_ACME_DNS_PROVIDER=duckdns
+
+## The root domain name
+TRAEFIK_ROOT_FULLY_QUALIFIED_DOMAIN_NAME=amifucked.duckdns.org
+
+## The fully qualified domain name to access Traefik
+TRAEFIK_FULLY_QUALIFIED_DOMAIN_NAME=traefik.${TRAEFIK_ROOT_FULLY_QUALIFIED_DOMAIN_NAME}
+
+## Enable the Traefik dashboard
+TRAEFIK_ENABLE_DASHBOARD=true
+
+## The image version to use for Traefik
+TRAEFIK_IMAGE_VERSION=latest
+
+
+
+# Create a dns-challenge.env file containing your DuckDNS token
+
+## DuckDNS token
+DUCKDNS_TOKEN=<YourToken> # Not adding mine here for obvious security reasons
+
+
+# Create a secrets/ directory that will contain username and password of users authorized to access traefik
+
+## Still from ~/webapp
+mkdir secrets
+
+## We will use htpasswd to generate the account and hash the password
+## If htpasswd is not installed type this command before
+sudo apt install apache2-utils
+
+## Then 
+htpasswd -c secrets/auth-users.txt admin
+## Then enter the wanted password for this account
+```
+
+### Create DockerFile for the webapp
+In the java project directory, create a DockerFile containing these informations
+```
+FROM maven:3.8.4-openjdk-17 as builder
+
+WORKDIR /app
+COPY . .
+RUN mvn clean package
+
+FROM openjdk:17-slim
+WORKDIR /app
+COPY --from=builder /app/target/lab06-1.0-SNAPSHOT.jar app.jar
+EXPOSE 8080
+CMD ["java", "-jar", "app.jar"]
+```
+ 
+### Setup docker-compose.yaml
+
+Create a docker-compose.yaml file in the webapp directory and setup traefik, the web application and the database
+
+```
+networks:
+  traefik_network:
+    name: traefik_network
+
+secrets:
+  # We create a Docker secret to store the basic-auth users
+  auth_users:
+    file: ./secrets/auth-users.txt
+
+services:
+  traefik:
+    image: traefik:${TRAEFIK_IMAGE_VERSION:-latest}
+    command:
+      ## Global
+      # Uncomment next line when testing
+      # - --log.level=DEBUG
+      - --api.dashboard=${TRAEFIK_ENABLE_DASHBOARD:-false}
+      ## Docker
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      ## Entrypoints
+      - --entrypoints.http.address=:80
+      - --entrypoints.http.http.redirections.entrypoint.to=https
+      - --entrypoints.http.http.redirections.entrypoint.scheme=https
+      - --entrypoints.http.http.redirections.entrypoint.permanent=true
+      - --entrypoints.https.address=:443
+      - --entrypoints.https.http.tls=true
+      - --entrypoints.https.http.tls.certresolver=letsencrypt
+      # We ask Let's Encrypt to generate certificates for our root domain and wildcard subdomains
+      - --entrypoints.https.http.tls.domains[0].main=${TRAEFIK_ROOT_FULLY_QUALIFIED_DOMAIN_NAME}
+      - --entrypoints.https.http.tls.domains[0].sans=*.${TRAEFIK_ROOT_FULLY_QUALIFIED_DOMAIN_NAME}
+      ## Certificates
+      # Uncomment next line when testing
+      # - --certificatesResolvers.letsencrypt.acme.caServer=https://acme-staging-v02.api.letsencrypt.org/directory
+      - --certificatesresolvers.letsencrypt.acme.email=${TRAEFIK_ACME_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      # We switch to DNS-01 challenge to generate certificates
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge=true
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=${TRAEFIK_ACME_DNS_PROVIDER}
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge.delayBeforeCheck=30
+    restart: unless-stopped
+    env_file:
+      # We load the environment variables from the .env file for the DNS challenge
+      - dns-challenge.env
+    networks:
+      - traefik_network
+    ports:
+      - 80:80
+      - 443:443
+    secrets:
+      - auth_users
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./letsencrypt:/letsencrypt
+    labels:
+      ## Traefik
+      - traefik.enable=true
+      - traefik.docker.network=traefik_network
+      ## Middlewares
+      # This enables the basic-auth middleware using the Docker secret
+      - traefik.http.middlewares.basic-auth.basicauth.usersFile=/run/secrets/auth_users
+      ## Routers
+      - traefik.http.routers.traefik.entrypoints=https
+      - traefik.http.routers.traefik.rule=Host(`${TRAEFIK_FULLY_QUALIFIED_DOMAIN_NAME}`)
+      - traefik.http.routers.traefik.service=api@internal
+      - traefik.http.routers.traefik.middlewares=basic-auth
+java-app:
+    build:
+      context: ./DAI_Project_3/lab06
+      dockerfile: Dockerfile
+    networks:
+      - traefik_network
+    volumes:
+      - ./DAI_Project_3/lab06/database.db:/app/database/database.db
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik_network
+      - traefik.http.routers.java-app.entrypoints=https
+      - traefik.http.routers.java-app.rule=Host(`${TRAEFIK_ROOT_FULLY_QUALIFIED_DOMAIN_NAME}`)
+      - traefik.http.services.java-app.loadbalancer.server.port=8080
+```
+
+TODO: Add database configuration in dockercompose file
+
 
 

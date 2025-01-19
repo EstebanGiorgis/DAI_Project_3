@@ -21,10 +21,10 @@ public class Main {
     ConcurrentHashMap<Integer, Subject> subjects = new ConcurrentHashMap<>();
     ConcurrentHashMap<Integer, LocalDateTime> subjectsCache = new ConcurrentHashMap<>();
 
-    AuthController authController = new AuthController(users);
-    UsersController usersController = new UsersController(users, usersCache);
-    SubjectController subjectsController = new SubjectController(subjects, subjectsCache);
-    EnrollmentController enrollmentController = new EnrollmentController(users, subjects);
+
+    UsersController usersController = new UsersController(usersCache);
+    SubjectController subjectsController = new SubjectController(subjectsCache);
+    EnrollmentController enrollmentController = new EnrollmentController();
 
     Javalin app = Javalin.create(config -> {
       config.validation.register(LocalDateTime.class, LocalDateTime::parse);
