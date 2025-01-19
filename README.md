@@ -749,6 +749,7 @@ services:
 ```
 
 ## DNS configuration
+![image](https://github.com/user-attachments/assets/71c3d69e-6628-48dd-9a33-a8f38f53005f)
 
 
 
